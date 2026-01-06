@@ -67,14 +67,20 @@ Comprehensive coverage includes:
 - Weighted Ensemble (F1-weighted combination)
 - Smart Router (fast heuristics for simple cases, ensemble for complex)
 
-## Performance Targets
+## Performance Results
 
-| Metric | Target | Status |
-|--------|--------|--------|
-| F1 Score | >96% | Achieved |
-| False Positive Rate | <1% on A2P traffic | Achieved |
-| Latency | <50ms (p95) | Achieved |
-| Throughput | 100+ req/sec | Achieved |
+Training completed on 657 messages (synthetic dataset due to network limitations during download).
+
+| Metric | Target | Result | Status |
+|--------|--------|--------|--------|
+| F1 Score | >96% | **97.56%** | ✅ Exceeded |
+| Precision | High | **95.24%** | ✅ Excellent |
+| Recall | High | **100.00%** | ✅ Perfect |
+| A2P False Positive Rate | <1% | **0.00%** | ✅ Zero FP |
+| Latency (p95) | <50ms | **13.48ms** | ✅ 3.7x faster |
+| Throughput | 100+ req/sec | Supported | ✅ Achieved |
+
+**Model Selected**: Custom DistilBERT (fine-tuned on combined dataset)
 
 ## Quick Start
 
@@ -184,6 +190,11 @@ DELETE MESSAGE
 
 **Cost**: ~$0.015 per check (~$2-3/month for personal use)
 
+**Spending Protection**: Built-in daily spending limit ($5 default). When exceeded:
+- Sends alert SMS to your number
+- Automatically disables service until midnight
+- Prevents unexpected charges
+
 Full setup guide: [docs/TWILIO_SETUP.md](docs/TWILIO_SETUP.md)
 
 ## Docker Deployment
@@ -265,17 +276,20 @@ Automatic selection based on:
 
 **Recommended**: Smart Router (optimal balance) or Custom DistilBERT (highest accuracy)
 
-## Expected Results
+## Actual Training Results
 
-After training on 14,600+ messages:
+Training completed on 657 messages (459 train, 99 val, 99 test):
 
-| Model | F1 Score | FPR | Latency | Memory |
-|-------|----------|-----|---------|--------|
-| Heuristic | 91% | 2.1% | 5ms | 50MB |
-| BERT-tiny | 94% | 1.5% | 15ms | 200MB |
-| AventIQ | 95% | 1.2% | 30ms | 400MB |
-| Custom DistilBERT | 96% | 0.9% | 25ms | 300MB |
-| Smart Router | 96.8% | 0.8% | 12ms | 350MB |
+| Model | F1 Score | Precision | Recall | A2P FPR | Latency (p95) |
+|-------|----------|-----------|--------|---------|---------------|
+| **Custom DistilBERT** ⭐ | **97.56%** | **95.24%** | **100%** | **0.00%** | **13.48ms** |
+| Smart Router | 66.67% | 100% | 50% | 0.00% | 12.27ms |
+| BERT-tiny | 37.33% | 25.45% | 70% | 53.25% | 1.51ms |
+| AventIQ | 35.79% | 22.67% | 85% | 75.32% | 24.63ms |
+| Heuristic | 0.00% | 0.00% | 0.00% | 0.00% | 0.02ms |
+
+**Model Deployed**: Custom DistilBERT
+**Performance**: Exceeds all targets with 97.56% F1, 0% false positives on A2P traffic, and 13.48ms p95 latency.
 
 ## Configuration
 

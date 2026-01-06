@@ -31,6 +31,7 @@ from api.sms_handler import (
     SMSHandler, format_classification_response,
     format_short_response, extract_forwarded_message
 )
+from api.spending_monitor import SpendingMonitor
 
 # Initialize FastAPI
 app = FastAPI(
@@ -54,6 +55,7 @@ class AppState:
         self.model = None
         self.model_name = None
         self.sms_handler = None
+        self.spending_monitor = None
         self.feedback_buffer = []
         self.feedback_threshold = 100
         self.stats = {
@@ -188,6 +190,18 @@ async def startup_event():
         print(f"📱 SMS features enabled: {state.sms_handler.phone_number}")
     else:
         print("📱 SMS features disabled (no Twilio credentials)")
+
+    # Initialize spending monitor
+    state.spending_monitor = SpendingMonitor(daily_limit=5.0)
+    if state.spending_monitor.enabled:
+        status = state.spending_monitor.get_status()
+        print(f"💰 Spending monitor enabled: ${status['daily_limit']:.2f} daily limit")
+        if status['enabled']:
+            print(f"   Current spend: ${status['daily_spend']:.2f} ({status['message_count']} messages)")
+        else:
+            print(f"   ⚠️  Service disabled (limit exceeded)")
+    else:
+        print("💰 Spending monitor disabled (no Twilio credentials)")
 
     state.start_time = time.time()
     print(f"\n🚀 API ready! Model: {state.model_name}")
@@ -346,7 +360,7 @@ async def get_stats():
     """Get API statistics"""
     total = state.stats['requests']
     spam_rate = state.stats['spam_detected'] / total if total > 0 else 0
-    
+
     return StatsResponse(
         total_requests=state.stats['requests'],
         spam_detected=state.stats['spam_detected'],
@@ -355,6 +369,32 @@ async def get_stats():
         feedback_received=state.stats['feedback_received'],
         model_name=state.model_name or "unknown"
     )
+
+
+# Spending status endpoint
+@app.get("/spending")
+async def get_spending_status():
+    """Get current spending status and limits"""
+    if not state.spending_monitor or not state.spending_monitor.enabled:
+        return {
+            "enabled": False,
+            "message": "Spending monitor not available"
+        }
+
+    status = state.spending_monitor.get_status()
+
+    # Try to get actual Twilio usage
+    twilio_usage = state.spending_monitor.get_twilio_usage()
+
+    return {
+        "enabled": status['enabled'],
+        "daily_limit": status['daily_limit'],
+        "daily_spend": status['daily_spend'],
+        "message_count": status['message_count'],
+        "remaining_budget": status['remaining_budget'],
+        "date": status['date'],
+        "twilio_actual_usage": twilio_usage
+    }
 
 
 # Batch classification endpoint
@@ -425,6 +465,14 @@ async def handle_incoming_sms(
         )
         return Response(content=error_response, media_type="application/xml")
 
+    # Check spending limit
+    if state.spending_monitor and not state.spending_monitor.is_service_enabled():
+        error_response = state.sms_handler.create_twiml_response(
+            "Daily spending limit exceeded. Service will resume tomorrow. Thank you for understanding!"
+        )
+        print(f"   🚫 Request rejected: Spending limit exceeded")
+        return Response(content=error_response, media_type="application/xml")
+
     # Extract the forwarded message content
     message_to_classify = extract_forwarded_message(Body)
 
@@ -490,6 +538,10 @@ async def handle_incoming_sms(
         # Create TwiML response (Twilio will send this back to the user)
         twiml_response = state.sms_handler.create_twiml_response(response_text)
 
+        # Record spending (one message in + one message out = $0.015)
+        if state.spending_monitor:
+            state.spending_monitor.record_message(cost=0.015)
+
         return Response(content=twiml_response, media_type="application/xml")
 
     except Exception as e:
@@ -497,6 +549,9 @@ async def handle_incoming_sms(
         error_response = state.sms_handler.create_twiml_response(
             "⚠️ Error analyzing message. Please try again."
         )
+        # Still record spending even on error (one message in + one message out)
+        if state.spending_monitor:
+            state.spending_monitor.record_message(cost=0.015)
         return Response(content=error_response, media_type="application/xml")
 
 
@@ -514,6 +569,7 @@ async def root():
             "classify_batch": "POST /classify_batch - Classify multiple messages",
             "feedback": "POST /feedback - Submit feedback for model improvement",
             "stats": "GET /stats - Get API statistics",
+            "spending": "GET /spending - Get spending status and limits",
             "health": "GET /health - Health check",
             "sms_incoming": "POST /sms/incoming - Twilio webhook for SMS forwarding"
         },
