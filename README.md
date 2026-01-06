@@ -1,4 +1,4 @@
-# SMS Spam/Smishing Detection System
+# SmishCheck
 
 A production-ready spam detection system that evaluates multiple machine learning models and selects the best performer based on F1 score and latency. Features real-time SMS forwarding capabilities for instant spam/smishing analysis.
 
