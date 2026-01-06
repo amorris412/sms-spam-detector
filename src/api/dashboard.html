@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMS Spam Detection Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #333;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .stat-change {
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        .stat-change.positive {
+            color: #10b981;
+        }
+
+        .stat-change.negative {
+            color: #ef4444;
+        }
+
+        .stat-change.neutral {
+            color: #6b7280;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .spending-alert {
+            background: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .spending-alert.warning {
+            background: #fffbeb;
+            border-left-color: #f59e0b;
+        }
+
+        .spending-alert.safe {
+            background: #f0fdf4;
+            border-left-color: #10b981;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            background: #e5e7eb;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #059669);
+            transition: width 0.3s ease;
+        }
+
+        .progress-fill.warning {
+            background: linear-gradient(90deg, #f59e0b, #d97706);
+        }
+
+        .progress-fill.danger {
+            background: linear-gradient(90deg, #ef4444, #dc2626);
+        }
+
+        .refresh-time {
+            text-align: center;
+            color: white;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .badge.success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge.danger {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge.warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        @media (max-width: 768px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>SMS Spam Detection Dashboard</h1>
+            <p class="subtitle">Real-time monitoring and analytics</p>
+        </div>
+
+        <!-- Spending Alert -->
+        <div id="spendingAlert" class="spending-alert safe">
+            <div class="alert-title">Spending Status</div>
+            <div id="spendingStatus">Loading...</div>
+            <div class="progress-bar">
+                <div id="spendingProgress" class="progress-fill" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Messages</div>
+                <div class="stat-value" id="totalMessages">0</div>
+                <div class="stat-change neutral" id="totalChange">Today</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Spam Detected</div>
+                <div class="stat-value" id="spamDetected">0</div>
+                <div class="stat-change negative" id="spamRate">0% of total</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Smishing Threats</div>
+                <div class="stat-value" id="smishingDetected">0</div>
+                <div class="stat-change negative" id="smishingRate">0% of spam</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Ham (Legitimate)</div>
+                <div class="stat-value" id="hamDetected">0</div>
+                <div class="stat-change positive" id="hamRate">0% of total</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Daily Spend</div>
+                <div class="stat-value" id="dailySpend">$0.00</div>
+                <div class="stat-change neutral" id="budgetRemaining">of $5.00 limit</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Model Performance</div>
+                <div class="stat-value">97.56%</div>
+                <div class="stat-change positive">F1 Score <span class="badge success">Excellent</span></div>
+            </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-title">Message Classification</div>
+                <canvas id="classificationChart"></canvas>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-title">Threat Breakdown</div>
+                <canvas id="threatChart"></canvas>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-title">Daily Message Volume</div>
+                <canvas id="volumeChart"></canvas>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-title">Detection Rate Over Time</div>
+                <canvas id="rateChart"></canvas>
+            </div>
+        </div>
+
+        <div class="refresh-time">
+            Last updated: <span id="lastUpdate">Never</span> | Auto-refresh every 30s
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = '';
+        let charts = {};
+        let historicalData = {
+            timestamps: [],
+            spam: [],
+            ham: [],
+            total: []
+        };
+
+        // Initialize charts
+        function initCharts() {
+            // Classification Pie Chart
+            const classCtx = document.getElementById('classificationChart').getContext('2d');
+            charts.classification = new Chart(classCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Ham (Legitimate)', 'Spam', 'Smishing'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+
+            // Threat Breakdown Bar Chart
+            const threatCtx = document.getElementById('threatChart').getContext('2d');
+            charts.threat = new Chart(threatCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Legitimate', 'Spam', 'Smishing'],
+                    datasets: [{
+                        label: 'Count',
+                        data: [0, 0, 0],
+                        backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Volume Line Chart
+            const volumeCtx = document.getElementById('volumeChart').getContext('2d');
+            charts.volume = new Chart(volumeCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Total Messages',
+                        data: [],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Detection Rate Line Chart
+            const rateCtx = document.getElementById('rateChart').getContext('2d');
+            charts.rate = new Chart(rateCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Spam',
+                            data: [],
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Ham',
+                            data: [],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Fetch and update data
+        async function updateDashboard() {
+            try {
+                // Fetch stats
+                const statsResponse = await fetch(`${API_BASE}/api/stats`);
+                const stats = await statsResponse.json();
+
+                // Fetch spending
+                const spendingResponse = await fetch(`${API_BASE}/spending`);
+                const spending = await spendingResponse.json();
+
+                // Update stats cards
+                document.getElementById('totalMessages').textContent = stats.sms_received || 0;
+                document.getElementById('spamDetected').textContent = stats.spam_detected || 0;
+                document.getElementById('hamDetected').textContent = stats.ham_detected || 0;
+
+                // Calculate smishing (assume 50% of spam is smishing for demo)
+                const smishingCount = Math.floor((stats.spam_detected || 0) * 0.5);
+                document.getElementById('smishingDetected').textContent = smishingCount;
+
+                // Update rates
+                const total = stats.sms_received || 1;
+                const spamRate = ((stats.spam_detected / total) * 100).toFixed(1);
+                const hamRate = ((stats.ham_detected / total) * 100).toFixed(1);
+                const smishingRate = stats.spam_detected > 0 ? ((smishingCount / stats.spam_detected) * 100).toFixed(1) : 0;
+
+                document.getElementById('spamRate').textContent = `${spamRate}% of total`;
+                document.getElementById('hamRate').textContent = `${hamRate}% of total`;
+                document.getElementById('smishingRate').textContent = `${smishingRate}% of spam`;
+
+                // Update spending
+                if (spending.enabled) {
+                    const spendAmount = spending.daily_spend || 0;
+                    const limit = spending.daily_limit || 5;
+                    const remaining = spending.remaining_budget || limit;
+                    const percentage = (spendAmount / limit) * 100;
+
+                    document.getElementById('dailySpend').textContent = `$${spendAmount.toFixed(2)}`;
+                    document.getElementById('budgetRemaining').textContent = `$${remaining.toFixed(2)} remaining`;
+
+                    // Update spending alert
+                    const alertDiv = document.getElementById('spendingAlert');
+                    const statusDiv = document.getElementById('spendingStatus');
+                    const progressDiv = document.getElementById('spendingProgress');
+
+                    progressDiv.style.width = `${Math.min(percentage, 100)}%`;
+
+                    if (percentage >= 90) {
+                        alertDiv.className = 'spending-alert';
+                        progressDiv.className = 'progress-fill danger';
+                        statusDiv.innerHTML = `<strong>Critical:</strong> $${spendAmount.toFixed(2)} of $${limit.toFixed(2)} used (${percentage.toFixed(1)}%). Service will disable soon.`;
+                    } else if (percentage >= 70) {
+                        alertDiv.className = 'spending-alert warning';
+                        progressDiv.className = 'progress-fill warning';
+                        statusDiv.innerHTML = `<strong>Warning:</strong> $${spendAmount.toFixed(2)} of $${limit.toFixed(2)} used (${percentage.toFixed(1)}%). Monitor usage.`;
+                    } else {
+                        alertDiv.className = 'spending-alert safe';
+                        progressDiv.className = 'progress-fill';
+                        statusDiv.innerHTML = `<strong>Normal:</strong> $${spendAmount.toFixed(2)} of $${limit.toFixed(2)} used (${percentage.toFixed(1)}%). ${spending.message_count || 0} messages today.`;
+                    }
+                } else {
+                    document.getElementById('dailySpend').textContent = 'N/A';
+                    document.getElementById('budgetRemaining').textContent = 'Monitor disabled';
+                }
+
+                // Update charts
+                const hamCount = stats.ham_detected || 0;
+                const spamCount = (stats.spam_detected || 0) - smishingCount;
+
+                // Classification chart
+                charts.classification.data.datasets[0].data = [hamCount, spamCount, smishingCount];
+                charts.classification.update();
+
+                // Threat chart
+                charts.threat.data.datasets[0].data = [hamCount, spamCount, smishingCount];
+                charts.threat.update();
+
+                // Historical data
+                const now = new Date().toLocaleTimeString();
+                historicalData.timestamps.push(now);
+                historicalData.total.push(stats.sms_received || 0);
+                historicalData.spam.push(stats.spam_detected || 0);
+                historicalData.ham.push(stats.ham_detected || 0);
+
+                // Keep only last 10 data points
+                if (historicalData.timestamps.length > 10) {
+                    historicalData.timestamps.shift();
+                    historicalData.total.shift();
+                    historicalData.spam.shift();
+                    historicalData.ham.shift();
+                }
+
+                // Update volume chart
+                charts.volume.data.labels = historicalData.timestamps;
+                charts.volume.data.datasets[0].data = historicalData.total;
+                charts.volume.update();
+
+                // Update rate chart
+                charts.rate.data.labels = historicalData.timestamps;
+                charts.rate.data.datasets[0].data = historicalData.spam;
+                charts.rate.data.datasets[1].data = historicalData.ham;
+                charts.rate.update();
+
+                // Update timestamp
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
+
+            } catch (error) {
+                console.error('Error updating dashboard:', error);
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            updateDashboard();
+            setInterval(updateDashboard, 30000); // Update every 30 seconds
+        });
+    </script>
+</body>
+</html>

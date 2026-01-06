@@ -10,7 +10,7 @@ Features:
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, HTMLResponse
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, List
 import json
@@ -32,6 +32,7 @@ from api.sms_handler import (
     format_short_response, extract_forwarded_message
 )
 from api.spending_monitor import SpendingMonitor
+from api.message_tracker import MessageTracker
 
 # Initialize FastAPI
 app = FastAPI(
@@ -56,6 +57,7 @@ class AppState:
         self.model_name = None
         self.sms_handler = None
         self.spending_monitor = None
+        self.message_tracker = None
         self.feedback_buffer = []
         self.feedback_threshold = 100
         self.stats = {
@@ -202,6 +204,12 @@ async def startup_event():
             print(f"   ⚠️  Service disabled (limit exceeded)")
     else:
         print("💰 Spending monitor disabled (no Twilio credentials)")
+
+    # Initialize message tracker
+    state.message_tracker = MessageTracker()
+    tracker_stats = state.message_tracker.get_stats()
+    print(f"📊 Message tracker enabled: {tracker_stats['total_messages']} messages today")
+    print(f"   Spam: {tracker_stats['spam_count']} | Ham: {tracker_stats['ham_count']} | Smishing: {tracker_stats['smishing_count']}")
 
     state.start_time = time.time()
     print(f"\n🚀 API ready! Model: {state.model_name}")
@@ -397,6 +405,48 @@ async def get_spending_status():
     }
 
 
+# Dashboard endpoint
+@app.get("/dashboard")
+async def get_dashboard():
+    """Serve dashboard HTML"""
+    dashboard_path = Path(__file__).parent / "dashboard.html"
+    if not dashboard_path.exists():
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+
+    with open(dashboard_path, 'r') as f:
+        html_content = f.read()
+
+    return HTMLResponse(content=html_content)
+
+
+# API stats endpoint (for dashboard)
+@app.get("/api/stats")
+async def get_api_stats():
+    """Get detailed statistics for dashboard"""
+    # Get tracker stats
+    tracker_stats = {}
+    if state.message_tracker:
+        tracker_stats = state.message_tracker.get_stats()
+
+    # Get spending stats
+    spending_stats = {}
+    if state.spending_monitor:
+        spending_stats = state.spending_monitor.get_status()
+
+    return {
+        "total_messages": tracker_stats.get('total_messages', 0),
+        "spam_detected": tracker_stats.get('spam_count', 0),
+        "smishing_detected": tracker_stats.get('smishing_count', 0),
+        "ham_detected": tracker_stats.get('ham_count', 0),
+        "sms_received": tracker_stats.get('sms_received', 0),
+        "spam_rate": tracker_stats.get('spam_rate', 0),
+        "smishing_rate": tracker_stats.get('smishing_rate', 0),
+        "model_name": state.model_name,
+        "spending": spending_stats,
+        "date": tracker_stats.get('date', str(datetime.now().date()))
+    }
+
+
 # Batch classification endpoint
 @app.post("/classify_batch")
 async def classify_batch(messages: List[str]):
@@ -519,6 +569,17 @@ async def handle_incoming_sms(
         else:
             state.stats['ham_detected'] += 1
 
+        # Track message for dashboard
+        if state.message_tracker:
+            state.message_tracker.record_message(
+                message=message_to_classify,
+                classification=label,
+                is_smishing=is_smishing,
+                confidence=confidence,
+                from_number=From,
+                via_sms=True
+            )
+
         # Format response for SMS
         response_text = format_classification_response(
             is_spam=is_spam,
@@ -565,10 +626,12 @@ async def root():
         "model": state.model_name,
         "status": "operational" if state.model is not None else "loading",
         "endpoints": {
+            "dashboard": "GET /dashboard - Real-time dashboard with charts and stats",
             "classify": "POST /classify - Classify a single message",
             "classify_batch": "POST /classify_batch - Classify multiple messages",
             "feedback": "POST /feedback - Submit feedback for model improvement",
             "stats": "GET /stats - Get API statistics",
+            "api_stats": "GET /api/stats - Detailed stats for dashboard",
             "spending": "GET /spending - Get spending status and limits",
             "health": "GET /health - Health check",
             "sms_incoming": "POST /sms/incoming - Twilio webhook for SMS forwarding"
