@@ -12,9 +12,8 @@ A production-ready spam detection system that evaluates multiple machine learnin
 
 - **Multi-Model Evaluation** - Tests heuristic, HuggingFace transformers, and ensemble approaches
 - **Advanced URL Analysis** - 12-feature detection system for malicious URLs
-- **OTP Protection** - Zero false positives on legitimate 2FA messages
 - **Spam vs Smishing Classification** - Separate tracking for different threat types
-- **Extensive A2P Coverage** - 2,000+ legitimate marketing/2FA/transactional messages for low false positive rate
+- **Extensive A2P Coverage** - Trained on 2,000+ legitimate marketing/2FA/transactional messages for low false positive rate
 - **High-Performance API** - FastAPI service with <50ms latency and async processing
 - **SMS Forwarding** - Real-time analysis via Twilio integration (forward texts, get instant results)
 - **Continuous Learning** - Feedback loop with automatic retraining
@@ -30,7 +29,7 @@ Training on 14,600+ messages from 4 authoritative sources:
 | UCI SMS Spam Collection | 5,574 | Spam/Ham | 2012 |
 | Mishra-Soni Smishing | 5,971 | Spam/Smishing/Ham | 2023 |
 | Smishtank Dataset | 1,062 | Smishing | 2024 |
-| A2P Legitimate Messages | 2,000+ | Marketing/2FA/Transactional | 2024 |
+| Synthetic A2P Legitimate Messages | 2,000+ | Marketing/2FA/Transactional | 2024 |
 
 Comprehensive coverage includes:
 - Traditional spam (unwanted marketing)
